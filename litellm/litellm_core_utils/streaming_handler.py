@@ -477,6 +477,26 @@ class CustomStreamWrapper:
                     text = str_line.choices[0].delta.content
                 else:  # function/tool calling chunk - when content is None. in this case we just return the original chunk from openai
                     pass
+
+                # Check for empty content with no function/tool calls
+                if (
+                    text == ""
+                    and not getattr(str_line.choices[0].delta, "tool_calls", None)
+                    and not getattr(str_line.choices[0].delta, "function_call", None)
+                    and not str_line.choices[0].finish_reason
+                ):
+                    print("empty?")
+                    print(chunk)
+
+                    return {
+                        "text": None,  # Special value to indicate skip
+                        "is_finished": False,
+                        "finish_reason": None,
+                        "original_chunk": str_line,
+                        "logprobs": None,
+                        "usage": None,
+                    }
+
                 if str_line.choices[0].finish_reason:
                     is_finished = True
                     finish_reason = str_line.choices[0].finish_reason
@@ -877,6 +897,22 @@ class CustomStreamWrapper:
         response_obj: Dict[str, Any] = {}
 
         try:
+            # Check for OpenRouter keep-alive
+            if self.custom_llm_provider == "openrouter":
+                if isinstance(chunk, dict) and chunk.get("choices"):
+                    first_choice = chunk["choices"][0]
+                    delta = first_choice.get("delta", {})
+                    finish_reason = first_choice.get("finish_reason")
+
+                    # Check for OpenRouter keep-alive signature
+                    if (
+                        not delta.get("content")
+                        and not delta.get("tool_calls")
+                        and not delta.get("function_call")
+                        and finish_reason is None
+                    ):
+                        return None
+
             # return this for all models
             completion_obj: Dict[str, Any] = {"content": ""}
             from litellm.types.utils import GenericStreamingChunk as GChunk
