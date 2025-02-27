@@ -62,6 +62,8 @@ class CustomStreamWrapper:
         make_call: Optional[Callable] = None,
         _response_headers: Optional[dict] = None,
     ):
+        self.last_chunk_time = time.time()
+        self.stream_timeout = 30  # seconds
         self.model = model
         self.make_call = make_call
         self.custom_llm_provider = custom_llm_provider
@@ -1390,11 +1392,11 @@ class CustomStreamWrapper:
         if _finish_reason is not None:
             model_response.choices[0].finish_reason = _finish_reason
         else:
-            model_response.choices[0].finish_reason = "stop"
+            model_response.choices[0].finish_reason = ""  # Default if missing
 
         ## if tool use
         if (
-            model_response.choices[0].finish_reason == "stop" and self.tool_call
+            model_response.choices[0].finish_reason in ["", "stop"] and self.tool_call
         ):  # don't overwrite for other - potential error finish reasons
             model_response.choices[0].finish_reason = "tool_calls"
         return model_response
@@ -1410,6 +1412,9 @@ class CustomStreamWrapper:
             if self.completion_stream is None:
                 self.fetch_sync_stream()
             while True:
+                if time.time() - self.last_chunk_time > self.stream_timeout:
+                    raise TimeoutError("Stream inactive for 30 seconds")
+
                 if (
                     isinstance(self.completion_stream, str)
                     or isinstance(self.completion_stream, bytes)
@@ -1418,6 +1423,7 @@ class CustomStreamWrapper:
                     chunk = self.completion_stream
                 else:
                     chunk = next(self.completion_stream)
+                self.last_chunk_time = time.time()
                 if chunk is not None and chunk != b"":
                     print_verbose(
                         f"PROCESSED CHUNK PRE CHUNK CREATOR: {chunk}; custom_llm_provider: {self.custom_llm_provider}"
@@ -1514,6 +1520,18 @@ class CustomStreamWrapper:
                     original_exception=e,
                     custom_llm_provider=self.custom_llm_provider,
                 )
+        finally:
+            if not self.sent_last_chunk:
+                self.sent_last_chunk = True
+                processed_chunk = self.finish_reason_handler()
+                if self.stream_options is None:
+                    usage = calculate_total_usage(chunks=self.chunks)
+                    processed_chunk._hidden_params["usage"] = usage
+                threading.Thread(
+                    target=self.run_success_logging_and_cache_storage,
+                    args=(processed_chunk, cache_hit),
+                ).start()
+                return processed_chunk
 
     def fetch_sync_stream(self):
         if self.completion_stream is None and self.make_call is not None:
