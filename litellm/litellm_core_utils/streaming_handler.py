@@ -485,21 +485,24 @@ class CustomStreamWrapper:
                     and not getattr(str_line.choices[0].delta, "function_call", None)
                     and not str_line.choices[0].finish_reason
                 ):
-                    print("empty?")
-                    print(chunk)
+                    print(f"empty?; chunk:{chunk}")
 
-                    return {
-                        "text": None,  # Special value to indicate skip
-                        "is_finished": False,
-                        "finish_reason": None,
-                        "original_chunk": str_line,
-                        "logprobs": None,
-                        "usage": None,
-                    }
+                    # return {
+                    #     "text": None,  # Special value to indicate skip
+                    #     "is_finished": False,
+                    #     "finish_reason": None,
+                    #     "original_chunk": str_line,
+                    #     "logprobs": None,
+                    #     "usage": None,
+                    # }
 
                 if str_line.choices[0].finish_reason:
                     is_finished = True
                     finish_reason = str_line.choices[0].finish_reason
+                    print(f"DEBUGPRINT[14]: streaming_handler.py:479: finish_reason={finish_reason}")
+                    # don't treat empty content as finished unless explicitly marked
+                    # if finish_reason != "":
+                    #     is_finished = True
 
                 # checking for logprobs
                 if (
@@ -903,6 +906,8 @@ class CustomStreamWrapper:
                     first_choice = chunk["choices"][0]
                     delta = first_choice.get("delta", {})
                     finish_reason = first_choice.get("finish_reason")
+                    print(f"DEBUGPRINT[18]: streaming_handler.py:906: chunk={chunk}")
+                    print(f"DEBUGPRINT[16]: streaming_handler.py:908: delta={delta}\n")
 
                     # Check for OpenRouter keep-alive signature
                     if (
@@ -911,6 +916,7 @@ class CustomStreamWrapper:
                         and not delta.get("function_call")
                         and finish_reason is None
                     ):
+                        print('aaaaaaaaaaaaaaaaaaaaaaaaa')
                         return None
 
             # return this for all models
@@ -1323,9 +1329,9 @@ class CustomStreamWrapper:
                                 if original_chunk.choices[0].delta is None
                                 else dict(original_chunk.choices[0].delta)
                             )
-                            print_verbose(f"original delta: {delta}")
+                            print(f"original delta: {delta}")
                             model_response.choices[0].delta = Delta(**delta)
-                            print_verbose(
+                            print(
                                 f"new delta: {model_response.choices[0].delta}"
                             )
                         except Exception:
@@ -1558,8 +1564,10 @@ class CustomStreamWrapper:
                 )
         finally:
             if not self.sent_last_chunk:
+                print("Stream ended unexpectedly?")
                 self.sent_last_chunk = True
                 processed_chunk = self.finish_reason_handler()
+                print(f"lastt chunk: {processed_chunk}\n")
                 if self.stream_options is None:
                     usage = calculate_total_usage(chunks=self.chunks)
                     processed_chunk._hidden_params["usage"] = usage
