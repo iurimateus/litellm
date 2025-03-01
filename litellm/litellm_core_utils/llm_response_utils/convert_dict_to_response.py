@@ -60,6 +60,7 @@ async def convert_to_streaming_response_async(response_object: Optional[dict] = 
 
     choice_list = []
 
+    print(f"DEBUGPRINT[39]: convert_dict_to_response.py:63: response_object={response_object}")
     for idx, choice in enumerate(response_object["choices"]):
         if (
             choice["message"].get("tool_calls", None) is not None
@@ -127,7 +128,9 @@ def convert_to_streaming_response(response_object: Optional[dict] = None):
 
     model_response_object = ModelResponse(stream=True)
     choice_list = []
+    print(f"DEBUGPRINT[41]: convert_dict_to_response.py:131: response_object={response_object}")
     for idx, choice in enumerate(response_object["choices"]):
+        print(f"DEBUGPRINT[40]: convert_dict_to_response.py:131: choice={choice}")
         delta = Delta(
             content=choice["message"].get("content", None),
             role=choice["message"]["role"],
@@ -251,7 +254,6 @@ class LiteLLMResponseObjectHandler:
         model_response_object: Optional[ImageResponse] = None,
         hidden_params: Optional[dict] = None,
     ) -> ImageResponse:
-
         response_object.update({"hidden_params": hidden_params})
 
         if model_response_object is None:
@@ -412,6 +414,7 @@ def convert_to_model_response_object(  # noqa: PLR0915
             if response_object is None or model_response_object is None:
                 raise Exception("Error in response object format")
             if stream is True:
+                print("aaaaaaaaaaaaaaaaaa")
                 # for returning cached responses, we need to yield a generator
                 return convert_to_streaming_response(response_object=response_object)
             choice_list = []

@@ -556,7 +556,8 @@ class Delta(OpenAIObject):
         if "reasoning_content" in params:
             provider_specific_fields["reasoning_content"] = params["reasoning_content"]
             setattr(self, "reasoning_content", params["reasoning_content"])
-        elif "reasoning" in params:
+
+        if "reasoning" in params:
             provider_specific_fields["reasoning"] = params["reasoning"]
             setattr(self, "reasoning", params["reasoning"])
 

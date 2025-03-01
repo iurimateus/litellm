@@ -62,8 +62,8 @@ class CustomStreamWrapper:
         make_call: Optional[Callable] = None,
         _response_headers: Optional[dict] = None,
     ):
-        self.last_chunk_time = time.time()
-        self.stream_timeout = 30  # seconds
+        # self.last_chunk_time = time.time()
+        # self.stream_timeout = 60  # seconds
         self.model = model
         self.make_call = make_call
         self.custom_llm_provider = custom_llm_provider
@@ -497,12 +497,12 @@ class CustomStreamWrapper:
                     # }
 
                 if str_line.choices[0].finish_reason:
-                    is_finished = True
+                    # is_finished = True
                     finish_reason = str_line.choices[0].finish_reason
                     print(f"DEBUGPRINT[14]: streaming_handler.py:479: finish_reason={finish_reason}")
                     # don't treat empty content as finished unless explicitly marked
-                    # if finish_reason != "":
-                    #     is_finished = True
+                    if finish_reason != "":
+                        is_finished = True
 
                 # checking for logprobs
                 if (
@@ -740,6 +740,10 @@ class CustomStreamWrapper:
         is_empty = True
         if delta.content is not None:
             is_empty = False
+        elif getattr(delta, "reasoning_content") is not None:
+            is_empty = False
+        elif getattr(delta, "reasoning") is not None:
+            is_empty = False
         elif delta.tool_calls is not None:
             is_empty = False
         elif delta.function_call is not None:
@@ -778,7 +782,7 @@ class CustomStreamWrapper:
             )
         ):  # cannot set content of an OpenAI Object to be an empty string
 
-            self.safety_checker()
+            # self.safety_checker()
             hold, model_response_str = self.check_special_tokens(
                 chunk=completion_obj["content"],
                 finish_reason=model_response.choices[0].finish_reason,
@@ -912,12 +916,14 @@ class CustomStreamWrapper:
                     # Check for OpenRouter keep-alive signature
                     if (
                         not delta.get("content")
+                        # and not delta.get("reasoning")
+                        # and not delta.get("reasoning_content")
                         and not delta.get("tool_calls")
                         and not delta.get("function_call")
                         and finish_reason is None
                     ):
                         print('aaaaaaaaaaaaaaaaaaaaaaaaa')
-                        return None
+                        # return None
 
             # return this for all models
             completion_obj: Dict[str, Any] = {"content": ""}
@@ -935,11 +941,16 @@ class CustomStreamWrapper:
                     or self.custom_llm_provider in litellm._custom_providers
                 )
             ):
+                # print(f"DEBUGPRINT[22]: streaming_handler.py:942: chunk={chunk}")
 
                 if self.received_finish_reason is not None:
                     if "provider_specific_fields" not in chunk:
                         raise StopIteration
+
                 anthropic_response_obj: GChunk = chunk
+
+                # print(f"DEBUGPRINT[23]: streaming_handler.py:944: anthropic_response_obj={anthropic_response_obj}")
+
                 completion_obj["content"] = anthropic_response_obj["text"]
                 if anthropic_response_obj["is_finished"]:
                     self.received_finish_reason = anthropic_response_obj[
@@ -1248,8 +1259,10 @@ class CustomStreamWrapper:
                 response_obj is not None
                 and response_obj.get("original_chunk", None) is not None
             ):  # function / tool calling branch - only set for openai/azure compatible endpoints
+                print(f"DEBUGPRINT[37]: streaming_handler.py:1259: response_obj={response_obj}")
                 # enter this branch when no content has been passed in response
                 original_chunk = response_obj.get("original_chunk", None)
+                print(f"DEBUGPRINT[36]: streaming_handler.py:1263: original_chunk={original_chunk}")
                 model_response.id = original_chunk.id
                 self.response_id = original_chunk.id
                 if original_chunk.choices and len(original_chunk.choices) > 0:
@@ -1454,8 +1467,8 @@ class CustomStreamWrapper:
             if self.completion_stream is None:
                 self.fetch_sync_stream()
             while True:
-                if time.time() - self.last_chunk_time > self.stream_timeout:
-                    raise TimeoutError("Stream inactive for 30 seconds")
+                # if time.time() - self.last_chunk_time > self.stream_timeout:
+                #     raise TimeoutError("Stream inactive for 30 seconds")
 
                 if (
                     isinstance(self.completion_stream, str)
@@ -1465,7 +1478,7 @@ class CustomStreamWrapper:
                     chunk = self.completion_stream
                 else:
                     chunk = next(self.completion_stream)
-                self.last_chunk_time = time.time()
+                # self.last_chunk_time = time.time()
                 if chunk is not None and chunk != b"":
                     print_verbose(
                         f"PROCESSED CHUNK PRE CHUNK CREATOR: {chunk}; custom_llm_provider: {self.custom_llm_provider}"
@@ -1562,20 +1575,19 @@ class CustomStreamWrapper:
                     original_exception=e,
                     custom_llm_provider=self.custom_llm_provider,
                 )
-        finally:
-            if not self.sent_last_chunk:
-                print("Stream ended unexpectedly?")
-                self.sent_last_chunk = True
-                processed_chunk = self.finish_reason_handler()
-                print(f"lastt chunk: {processed_chunk}\n")
-                if self.stream_options is None:
-                    usage = calculate_total_usage(chunks=self.chunks)
-                    processed_chunk._hidden_params["usage"] = usage
-                threading.Thread(
-                    target=self.run_success_logging_and_cache_storage,
-                    args=(processed_chunk, cache_hit),
-                ).start()
-                return processed_chunk
+        # finally:
+        #     if not self.sent_last_chunk:
+        #         self.sent_last_chunk = True
+        #         processed_chunk = self.finish_reason_handler()
+        #         print(f"Stream ended unexpectedly? Last chunk: {processed_chunk}\n")
+        #         if self.stream_options is None:
+        #             usage = calculate_total_usage(chunks=self.chunks)
+        #             processed_chunk._hidden_params["usage"] = usage
+        #         threading.Thread(
+        #             target=self.run_success_logging_and_cache_storage,
+        #             args=(processed_chunk, cache_hit),
+        #         ).start()
+        #         return processed_chunk
 
     def fetch_sync_stream(self):
         if self.completion_stream is None and self.make_call is not None:
