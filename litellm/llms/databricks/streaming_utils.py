@@ -61,12 +61,14 @@ class ModelResponseIterator:
 
             usage_chunk: Optional[Usage] = getattr(processed_chunk, "usage", None)
             if usage_chunk is not None:
-
                 usage = ChatCompletionUsageBlock(
                     prompt_tokens=usage_chunk.prompt_tokens,
                     completion_tokens=usage_chunk.completion_tokens,
                     total_tokens=usage_chunk.total_tokens,
                 )
+
+            if not provider_specific_fields:
+                provider_specific_fields = getattr(processed_chunk.choices[0].delta, "provider_specific_fields", None)
 
             return GenericStreamingChunk(
                 text=text,
@@ -75,6 +77,7 @@ class ModelResponseIterator:
                 finish_reason=finish_reason,
                 usage=usage,
                 index=0,
+                provider_specific_fields=provider_specific_fields,
             )
         except json.JSONDecodeError:
             raise ValueError(f"Failed to decode JSON from chunk: {chunk}")
