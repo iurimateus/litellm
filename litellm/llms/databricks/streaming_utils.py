@@ -70,6 +70,16 @@ class ModelResponseIterator:
             if not provider_specific_fields:
                 provider_specific_fields = getattr(processed_chunk.choices[0].delta, "provider_specific_fields", None)
 
+            if error := chunk.get("error", None):
+                # hack for openrouter errors
+                # {
+                #   'message': 'Rate limit exceeded: free-models-per-day',
+                #   'code': 429,
+                #   'metadata': {'headers': {'X-RateLimit-Limit': '200', 'X-RateLimit-Remaining': '0', 'X-RateLimit-Reset': '1741132800000'}}
+                # }
+                print(f"streaming_utils.py:70: error={error}")
+                raise Exception(error)
+
             return GenericStreamingChunk(
                 text=text,
                 tool_use=tool_use,
